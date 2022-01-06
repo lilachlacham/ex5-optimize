@@ -86,56 +86,77 @@ void smooth(int dim, pixel *src, pixel *dst, int kernelSize, int kernel[kernelSi
     int kernel8 = kernel[2][1];
     int kernel9 = kernel[2][2];
 
+    int carry = endBound % 20;
+
 	for (i = startBound ; i < endBound; ++i) {
-		for (j =  startBound ; j < endBound ; ++j) {
-            //int ii, jj;
-            int currRow, currCol;
-            pixel_sum sum;
-            pixel current_pixel;
-            int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
-            int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
-            int min_row, min_col, max_row, max_col;
-            pixel loop_pixel;
+		for (j =  startBound ; j < endBound-carry ; j+=20) {
+#define smoothLoop(j1) \
+            do {          \
+            pixel_sum sum;\
+            pixel current_pixel;\
+            int min_intensity = 766; /* arbitrary value that is higher than maximum possible intensity, which is 255*3=765*/ \
+            int max_intensity = -1; /* arbitrary value that is lower than minimum possible intensity, which is 0*/ \
+            int min_row, min_col, max_row, max_col; \
+            pixel loop_pixel; \
+            initialize_pixel_sum(&sum);\
+            int ii = max(i-1, 0);\
+            int jj = max(j1-1, 0);\
+            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj, dim)], kernel1); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj+1, dim)], kernel2); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj+2, dim)], kernel3); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj, dim)], kernel4); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj+1, dim)], kernel5); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj+2, dim)], kernel6); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj, dim)], kernel7); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj+1, dim)], kernel8); \
+            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj+2, dim)], kernel9); \
+            if (filter) { \
+                /* find min and max coordinates*/ \
+                ii = max(i-1, 0); \
+                jj = max(j1-1,0); \
+                int intensity = 0; \
+                filterMacro(src, ii, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii, jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+1, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+1, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+1,jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+2, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+2, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                filterMacro(src, ii+2,jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col) \
+                /* filter out min and max*/ \
+                sum_pixels_by_weight(&sum, src[calcIndex(min_row, min_col, dim)], -1);\
+                sum_pixels_by_weight(&sum, src[calcIndex(max_row, max_col, dim)], -1);\
+            }\
+            /* assign kernel's result to pixel at [i,j]*/ \
+            assign_sum_to_pixel(&current_pixel, sum, kernelScale);\
+            dst[calcIndex(i, j1, dim)] = current_pixel;\
+        } while(0);
 
-            initialize_pixel_sum(&sum);
-
-            int ii = max(i-1, 0);
-            int jj = max(j-1, 0);
-
-            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj, dim)], kernel1);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj+1, dim)], kernel2);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii, jj+2, dim)], kernel3);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj, dim)], kernel4);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj+1, dim)], kernel5);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+1, jj+2, dim)], kernel6);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj, dim)], kernel7);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj+1, dim)], kernel8);
-            sum_pixels_by_weight(&sum, src[calcIndex(ii+2, jj+2, dim)], kernel9);
-
-            if (filter) {
-                // find min and max coordinates
-
-                ii = max(i-1, 0);
-                jj = max(j-1,0);
-                int intensity = 0;
-                filterMacro(src, ii, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii, jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+1, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+1, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+1,jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+2, jj,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+2, jj+1,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                filterMacro(src, ii+2,jj+2,dim,min_intensity, min_row, min_col, max_intensity, max_row, max_col)
-                // filter out min and max
-                sum_pixels_by_weight(&sum, src[calcIndex(min_row, min_col, dim)], -1);
-                sum_pixels_by_weight(&sum, src[calcIndex(max_row, max_col, dim)], -1);
-            }
-
-            // assign kernel's result to pixel at [i,j]
-            assign_sum_to_pixel(&current_pixel, sum, kernelScale);
-            dst[calcIndex(i, j, dim)] = current_pixel;
+            smoothLoop(j);
+            smoothLoop(j+1);
+            smoothLoop(j+2);
+            smoothLoop(j+3);
+            smoothLoop(j+4);
+            smoothLoop(j+5);
+            smoothLoop(j+6);
+            smoothLoop(j+7);
+            smoothLoop(j+8);
+            smoothLoop(j+9);
+            smoothLoop(j+10);
+            smoothLoop(j+11);
+            smoothLoop(j+12);
+            smoothLoop(j+13);
+            smoothLoop(j+14);
+            smoothLoop(j+15);
+            smoothLoop(j+16);
+            smoothLoop(j+17);
+            smoothLoop(j+18);
+            smoothLoop(j+19);
 		}
+        for (;j < endBound;++j) {
+            smoothLoop(j);
+        }
 	}
 }
 
