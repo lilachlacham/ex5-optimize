@@ -65,7 +65,7 @@ static void sum_pixels_by_weight(pixel_sum *sum, pixel p, int weight) {
 /*
  *  Applies kernel for pixel at (i,j)
  */
-static pixel applyKernel(int dim, int i, int j, pixel *src, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
+/*static pixel applyKernel(int dim, int i, int j, pixel *src, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
 
 	int ii, jj;
 	int currRow, currCol;
@@ -132,7 +132,7 @@ static pixel applyKernel(int dim, int i, int j, pixel *src, int kernelSize, int 
 	// assign kernel's result to pixel at [i,j]
 	assign_sum_to_pixel(&current_pixel, sum, kernelScale);
 	return current_pixel;
-}
+}*/
 
 /*
 * Apply the kernel over each pixel.
@@ -142,9 +142,75 @@ static pixel applyKernel(int dim, int i, int j, pixel *src, int kernelSize, int 
 void smooth(int dim, pixel *src, pixel *dst, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
 
 	int i, j;
-	for (i = kernelSize / 2 ; i < dim - kernelSize / 2; i++) {
-		for (j =  kernelSize / 2 ; j < dim - kernelSize / 2 ; j++) {
-			dst[calcIndex(i, j, dim)] = applyKernel(dim, i, j, src, kernelSize, kernel, kernelScale, filter);
+    int startBound = kernelSize / 2;
+    int endBound = dim - startBound;
+	for (i = startBound ; i < endBound; ++i) {
+		for (j =  startBound ; j < endBound ; ++j) {
+            int ii, jj;
+            int currRow, currCol;
+            pixel_sum sum;
+            pixel current_pixel;
+            int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
+            int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
+            int min_row, min_col, max_row, max_col;
+            pixel loop_pixel;
+
+            initialize_pixel_sum(&sum);
+
+            for(ii = max(i-1, 0); ii <= min(i+1, dim-1); ++ii) {
+                for(jj = max(j-1, 0); jj <= min(j+1, dim-1); ++jj) {
+
+                    int kRow, kCol;
+
+                    // compute row index in kernel
+                    if (ii < i) {
+                        kRow = 0;
+                    } else if (ii > i) {
+                        kRow = 2;
+                    } else {
+                        kRow = 1;
+                    }
+
+                    // compute column index in kernel
+                    if (jj < j) {
+                        kCol = 0;
+                    } else if (jj > j) {
+                        kCol = 2;
+                    } else {
+                        kCol = 1;
+                    }
+
+                    // apply kernel on pixel at [ii,jj]
+                    sum_pixels_by_weight(&sum, src[calcIndex(ii, jj, dim)], kernel[kRow][kCol]);
+                }
+            }
+
+            if (filter) {
+                // find min and max coordinates
+                for(ii = max(i-1, 0); ii <= min(i+1, dim-1); ++ii) {
+                    for(jj = max(j-1, 0); jj <= min(j+1, dim-1); ++jj) {
+                        // check if smaller than min or higher than max and update
+                        loop_pixel = src[calcIndex(ii, jj, dim)];
+                        if ((((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue)) <= min_intensity) {
+                            min_intensity = (((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue));
+                            min_row = ii;
+                            min_col = jj;
+                        }
+                        if ((((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue)) > max_intensity) {
+                            max_intensity = (((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue));
+                            max_row = ii;
+                            max_col = jj;
+                        }
+                    }
+                }
+                // filter out min and max
+                sum_pixels_by_weight(&sum, src[calcIndex(min_row, min_col, dim)], -1);
+                sum_pixels_by_weight(&sum, src[calcIndex(max_row, max_col, dim)], -1);
+            }
+
+            // assign kernel's result to pixel at [i,j]
+            assign_sum_to_pixel(&current_pixel, sum, kernelScale);
+            dst[calcIndex(i, j, dim)] = current_pixel;
 		}
 	}
 }
@@ -152,8 +218,8 @@ void smooth(int dim, pixel *src, pixel *dst, int kernelSize, int kernel[kernelSi
 void charsToPixels(Image *charsImg, pixel* pixels) {
 
 	int row, col;
-	for (row = 0 ; row < m ; row++) {
-		for (col = 0 ; col < n ; col++) {
+	for (row = 0 ; row < m ; ++row) {
+		for (col = 0 ; col < n ; ++col) {
 
 			pixels[row*n + col].red = image->data[3*row*n + 3*col];
 			pixels[row*n + col].green = image->data[3*row*n + 3*col + 1];
@@ -165,8 +231,8 @@ void charsToPixels(Image *charsImg, pixel* pixels) {
 void pixelsToChars(pixel* pixels, Image *charsImg) {
 
 	int row, col;
-	for (row = 0 ; row < m ; row++) {
-		for (col = 0 ; col < n ; col++) {
+	for (row = 0 ; row < m ; ++row) {
+		for (col = 0 ; col < n ; ++col) {
 
 			image->data[3*row*n + 3*col] = pixels[row*n + col].red;
 			image->data[3*row*n + 3*col + 1] = pixels[row*n + col].green;
@@ -178,8 +244,8 @@ void pixelsToChars(pixel* pixels, Image *charsImg) {
 void copyPixels(pixel* src, pixel* dst) {
 
 	int row, col;
-	for (row = 0 ; row < m ; row++) {
-		for (col = 0 ; col < n ; col++) {
+	for (row = 0 ; row < m ; ++row) {
+		for (col = 0 ; col < n ; ++col) {
 
 			dst[row*n + col].red = src[row*n + col].red;
 			dst[row*n + col].green = src[row*n + col].green;
