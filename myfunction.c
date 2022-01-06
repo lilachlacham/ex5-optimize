@@ -139,31 +139,26 @@ void smooth(int dim, pixel *src, pixel *dst, int kernelSize, int kernel[kernelSi
 	}
 }
 
-void charsToPixels(Image *charsImg, pixel* pixels) {
+void charsToPixels(pixel* pixels) {
 
 	int row, col;
 	for (row = 0 ; row < m ; ++row) {
 		for (col = 0 ; col < n ; ++col) {
             unsigned int row_n_col = row*n + col;
             unsigned int row_n_col_3 = 3*row_n_col;
-			pixels[row_n_col].red = image->data[row_n_col_3];
-			pixels[row_n_col].green = image->data[row_n_col_3 + 1];
-			pixels[row_n_col].blue = image->data[row_n_col_3 + 2];
+            pixels[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
 		}
 	}
 }
 
-void pixelsToChars(pixel* pixels, Image *charsImg) {
+void pixelsToChars(pixel* pixels) {
 
 	int row, col;
 	for (row = 0 ; row < m ; ++row) {
 		for (col = 0 ; col < n ; ++col) {
             unsigned int row_n_col = row*n + col;
             unsigned int row_n_col_3 = 3*row_n_col;
-
-			image->data[row_n_col_3] = pixels[row_n_col].red;
-			image->data[row_n_col_3 + 1] = pixels[row_n_col].green;
-			image->data[row_n_col_3 + 2] = pixels[row_n_col].blue;
+            *(pixel *)&(image->data[row_n_col_3]) = pixels[row_n_col];
 		}
 	}
 }
@@ -175,24 +170,21 @@ void copyPixels(pixel* src, pixel* dst) {
 		for (col = 0 ; col < n ; ++col) {
             unsigned int row_n_col = row*n + col;
             dst[row_n_col] = src[row_n_col];
-			//dst[row_n_col].red = src[row_n_col].red;
-			//dst[row_n_col].green = src[row_n_col].green;
-			//dst[row_n_col].blue = src[row_n_col].blue;
 		}
 	}
 }
 
-void doConvolution(Image *image, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
+void doConvolution(int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
 
 	pixel* pixelsImg = malloc(m*n*sizeof(pixel));
 	pixel* backupOrg = malloc(m*n*sizeof(pixel));
 
-	charsToPixels(image, pixelsImg);
+	charsToPixels(pixelsImg);
 	copyPixels(pixelsImg, backupOrg);
 
 	smooth(m, backupOrg, pixelsImg, kernelSize, kernel, kernelScale, filter);
 
-	pixelsToChars(pixelsImg, image);
+	pixelsToChars(pixelsImg);
 
 	free(pixelsImg);
 	free(backupOrg);
@@ -216,25 +208,25 @@ void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sh
 
 	if (flag == '1') {	
 		// blur image
-		doConvolution(image, 3, blurKernel, 9, false);
+		doConvolution(3, blurKernel, 9, false);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, blurRsltImgName);	
 
 		// sharpen the resulting image
-		doConvolution(image, 3, sharpKernel, 1, false);
+		doConvolution(3, sharpKernel, 1, false);
 		
 		// write result image to file
 		writeBMP(image, srcImgpName, sharpRsltImgName);	
 	} else {
 		// apply extermum filtered kernel to blur image
-		doConvolution(image, 3, blurKernel, 7, true);
+		doConvolution(3, blurKernel, 7, true);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredBlurRsltImgName);
 
 		// sharpen the resulting image
-		doConvolution(image, 3, sharpKernel, 1, false);
+		doConvolution(3, sharpKernel, 1, false);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredSharpRsltImgName);	
