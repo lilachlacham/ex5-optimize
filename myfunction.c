@@ -48,20 +48,26 @@ typedef struct {
 (sum).green += ((int) (p).green) * (weight);\
 (sum).blue += ((int) (p).blue) * (weight);
 
-#define sum_pixels_by_color(color) \
+#define sum_pixels_by_color_with_kernel(color) \
 sum.color = (src[calcIndex(ii, jj, dim)].color * kernel1) + (src[calcIndex(ii, jj+1, dim)].color * kernel2) + \
 (src[calcIndex(ii, jj+2, dim)].color * kernel3) + (src[calcIndex(ii+1, jj, dim)].color * kernel4) + \
 (src[calcIndex(ii+1, jj+1, dim)].color * kernel5) + (src[calcIndex(ii+1, jj+2, dim)].color * kernel6) + \
 (src[calcIndex(ii+2, jj, dim)].color * kernel7) + (src[calcIndex(ii+2, jj+1, dim)].color * kernel8) + \
 (src[calcIndex(ii+2, jj+2, dim)].color * kernel9);
 
+#define sum_pixels_by_color_without_kernel(color) \
+sum.color = (src[calcIndex(ii, jj, dim)].color) + (src[calcIndex(ii, jj+1, dim)].color) + \
+(src[calcIndex(ii, jj+2, dim)].color) + (src[calcIndex(ii+1, jj, dim)].color) + \
+(src[calcIndex(ii+1, jj+1, dim)].color) + (src[calcIndex(ii+1, jj+2, dim)].color) + \
+(src[calcIndex(ii+2, jj, dim)].color) + (src[calcIndex(ii+2, jj+1, dim)].color) + \
+(src[calcIndex(ii+2, jj+2, dim)].color);
 
 /*
 * Apply the kernel over each pixel.
 * Ignore pixels where the kernel exceeds bounds. These are pixels with row index smaller than kernelSize/2 and/or
 * column index smaller than kernelSize/2
 */
-void smooth(int dim, pixel *src, pixel *dst, int kernel[KERNEL_SIZE][KERNEL_SIZE], int kernelScale, bool filter) {
+void smooth(int dim, pixel *src, pixel *dst, int kernel[KERNEL_SIZE][KERNEL_SIZE], int kernelScale, bool filter, bool isBlur) {
 
     register int kernel1 = kernel[0][0];
     register int kernel2 = kernel[0][1];
@@ -88,10 +94,15 @@ void smooth(int dim, pixel *src, pixel *dst, int kernel[KERNEL_SIZE][KERNEL_SIZE
             initialize_pixel_sum(&sum);
             register int ii = max(i-1, 0);
             register int jj = max(j-1, 0);
-
-            sum_pixels_by_color(red);
-            sum_pixels_by_color(green);
-            sum_pixels_by_color(blue);
+            if (isBlur){
+                sum_pixels_by_color_without_kernel(red);
+                sum_pixels_by_color_without_kernel(green);
+                sum_pixels_by_color_without_kernel(blue);
+            }else {
+                sum_pixels_by_color_with_kernel(red);
+                sum_pixels_by_color_with_kernel(green);
+                sum_pixels_by_color_with_kernel(blue);
+            }
 
             if (filter) {
                 register int maxII = min(i+1, dim-1);
@@ -174,26 +185,26 @@ void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sh
 
 	if (flag == '1') {	
 		// blur image
-        smooth(m, backupOrg, pixelsImg, blurKernel, 9, false);
+        smooth(m, backupOrg, pixelsImg, blurKernel, 9, false, true);
         pixelsToChars(pixelsImg, backupOrg);
 		// write result image to file
 		writeBMP(image, srcImgpName, blurRsltImgName);	
 
         // sharpen the resulting image
-        smooth(m, backupOrg, pixelsImg, sharpKernel, 1, false);
+        smooth(m, backupOrg, pixelsImg, sharpKernel, 1, false, false);
         pixelsToChars(pixelsImg, backupOrg);
 		// write result image to file
 		writeBMP(image, srcImgpName, sharpRsltImgName);	
 	} else {
 		// apply extermum filtered kernel to blur image
-        smooth(m, backupOrg, pixelsImg, blurKernel,7,true);
+        smooth(m, backupOrg, pixelsImg, blurKernel,7,true, true);
         pixelsToChars(pixelsImg, backupOrg);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredBlurRsltImgName);
 
 		// sharpen the resulting image
-        smooth(m,backupOrg,pixelsImg,sharpKernel,1,false);
+        smooth(m,backupOrg,pixelsImg,sharpKernel,1,false, false);
         pixelsToChars(pixelsImg, backupOrg);
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredSharpRsltImgName);
