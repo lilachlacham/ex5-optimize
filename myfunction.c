@@ -12,14 +12,14 @@ typedef struct {
     int red;
     int green;
     int blue;
-    // int num;
+    //int num;
 } pixel_sum;
 
 
 /* Compute min and max of two integers, respectively */
 //change min, max functions to MACRO
-#define min(a, b) (a < b ? a : b)
-#define max(a, b) (a > b ? a : b)
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 #define calcIndex(i, j, n) ((i)*(n)+(j))
 
 
@@ -40,6 +40,20 @@ typedef struct {
 	current_pixel.green = (unsigned char) (min(max(sum.green, 0), 255));\
 	current_pixel.blue = (unsigned char) (min(max(sum.blue, 0), 255));
 
+
+#define filter(ii, jj, loop_pixel) \
+ intensity = (int) loop_pixel.red + ((int) loop_pixel.green) + ((int) loop_pixel.blue);\
+if (intensity <= min_intensity) {   \
+    min_intensity = intensity;  \
+    min_row = ii;   \
+    min_col = jj;   \
+}   \
+if (intensity > max_intensity) {    \
+    max_intensity = intensity;  \
+    max_row = ii;   \
+    max_col = jj;   \
+}
+
 /*
 * sum_pixels_by_weight - Sums pixel values, scaled by given weight
 */
@@ -48,19 +62,24 @@ typedef struct {
 (sum).green += ((int) (p).green) * (weight);\
 (sum).blue += ((int) (p).blue) * (weight);
 
-#define sum_pixels_by_color_with_kernel(color) \
-sum.color = (src[calcIndex(ii, jj, dim)].color * (-1)) + (src[calcIndex(ii, jj+1, dim)].color * (-1)) + \
-(src[calcIndex(ii, jj+2, dim)].color * (-1)) + (src[calcIndex(ii+1, jj, dim)].color * (-1)) + \
-(src[calcIndex(ii+1, jj+1, dim)].color * (9)) + (src[calcIndex(ii+1, jj+2, dim)].color * (-1)) + \
-(src[calcIndex(ii+2, jj, dim)].color * (-1)) + (src[calcIndex(ii+2, jj+1, dim)].color * (-1)) + \
-(src[calcIndex(ii+2, jj+2, dim)].color * (-1));
+#define sum_pixels(sum, p) \
+(sum).red += ((int) (p).red); \
+(sum).green += ((int) (p).green);\
+(sum).blue += ((int) (p).blue);
 
-#define sum_pixels_by_color_without_kernel(color) \
-sum.color = (src[calcIndex(ii, jj, dim)].color) + (src[calcIndex(ii, jj+1, dim)].color) + \
-(src[calcIndex(ii, jj+2, dim)].color) + (src[calcIndex(ii+1, jj, dim)].color) + \
-(src[calcIndex(ii+1, jj+1, dim)].color) + (src[calcIndex(ii+1, jj+2, dim)].color) + \
-(src[calcIndex(ii+2, jj, dim)].color) + (src[calcIndex(ii+2, jj+1, dim)].color) + \
-(src[calcIndex(ii+2, jj+2, dim)].color);
+#define sum_pixels_by_color_with_kernel(color, index) \
+sum.color = (src[index].color * (-1)) + (src[index+1].color * (-1)) + \
+(src[index+2].color * (-1)) + (src[index+dim].color * (-1)) + \
+(src[index+dim+1].color * (9)) + (src[index+dim+2].color * (-1)) + \
+(src[index+dim+dim].color * (-1)) + (src[index+dim+dim+1].color * (-1)) + \
+(src[index+dim+dim+2].color * (-1));
+
+#define sum_pixels_by_color_without_kernel(color, index) \
+sum.color = (src[index].color) + (src[index+1].color) + \
+(src[index+2].color) + (src[index+dim].color) + \
+(src[index+dim+1].color) + (src[index+dim+2].color) + \
+(src[index+dim+dim].color) + (src[index+dim+dim+1].color) + \
+(src[index+dim+dim+2].color);
 
 
 /*
@@ -100,11 +119,11 @@ void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) 
             initialize_pixel_sum(&sum);
             register int ii = max(i-1, 0);
             register int jj = max(j-1, 0);
+            register int firstSrcIndex = calcIndex(ii, jj, dim);
 
-            sum_pixels_by_color_with_kernel(red);
-            sum_pixels_by_color_with_kernel(green);
-            sum_pixels_by_color_with_kernel(blue);
-
+            sum_pixels_by_color_with_kernel(red, firstSrcIndex);
+            sum_pixels_by_color_with_kernel(green, firstSrcIndex);
+            sum_pixels_by_color_with_kernel(blue, firstSrcIndex);
 
             if (filter) {
                 register int maxII = min(i+1, dim-1);
@@ -155,10 +174,10 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
             initialize_pixel_sum(&sum);
             register int ii = max(i-1, 0);
             register int jj = max(j-1, 0);
-
-            sum_pixels_by_color_without_kernel(red);
-            sum_pixels_by_color_without_kernel(green);
-            sum_pixels_by_color_without_kernel(blue);
+            register int firstSrcIndex = calcIndex(ii, jj, dim);
+            sum_pixels_by_color_without_kernel(red, firstSrcIndex);
+            sum_pixels_by_color_without_kernel(green, firstSrcIndex);
+            sum_pixels_by_color_without_kernel(blue, firstSrcIndex);
 
 
             if (filter) {
