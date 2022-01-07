@@ -162,7 +162,7 @@ void smooth(int dim, pixel *src, pixel *dst, int kernel[KERNEL_SIZE][KERNEL_SIZE
 	}
 }
 
-void charsToPixels(pixel* pixels) {
+/*void charsToPixels(pixel* pixels) {
 
 	register int row, col;
 	for (row = 0 ; row < m ; ++row) {
@@ -172,11 +172,22 @@ void charsToPixels(pixel* pixels) {
             pixels[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
 		}
 	}
+}*/
+
+void charsToPixels2(pixel* pixels, pixel* pixels2) {
+    register int row, col;
+    for (row = 0 ; row < m ; ++row) {
+        for (col = 0 ; col < n ; ++col) {
+            register unsigned int row_n_col = row*n + col;
+            register unsigned int row_n_col_3 = 3*row_n_col;
+            pixels[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
+            pixels2[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
+        }
+    }
 }
 
 void pixelsToChars(pixel* pixels) {
-
-	int row, col;
+	register int row, col;
 	for (row = 0 ; row < m ; ++row) {
 		for (col = 0 ; col < n ; ++col) {
             register unsigned int row_n_col = row*n + col;
@@ -186,24 +197,23 @@ void pixelsToChars(pixel* pixels) {
 	}
 }
 
-void copyPixels(pixel* src, pixel* dst) {
-
-	int row, col;
+/*void copyPixels(pixel* src, pixel* dst) {
+	register int row, col;
 	for (row = 0 ; row < m ; ++row) {
 		for (col = 0 ; col < n ; ++col) {
             register unsigned int row_n_col = row*n + col;
             dst[row_n_col] = src[row_n_col];
 		}
 	}
-}
+}*/
 
 void doConvolution(int kernel[KERNEL_SIZE][KERNEL_SIZE], int kernelScale, bool filter) {
 
 	pixel* pixelsImg = malloc(m*n*sizeof(pixel));
 	pixel* backupOrg = malloc(m*n*sizeof(pixel));
 
-	charsToPixels(pixelsImg);
-	copyPixels(pixelsImg, backupOrg);
+	charsToPixels2(pixelsImg, backupOrg);
+	//copyPixels(pixelsImg, backupOrg);
 
 	smooth(m, backupOrg, pixelsImg, kernel, kernelScale, filter);
 
