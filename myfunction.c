@@ -24,11 +24,6 @@ typedef struct {
 
 
 /*
- * initialize_pixel_sum - Initializes all fields of sum to 0
- */
-#define initialize_pixel_sum(sum) (sum)->red = (sum)->green = (sum)->blue = 0
-
-/*
  * assign_sum_to_pixel - Truncates pixel's new value to match the range [0,255]
  */
 
@@ -62,10 +57,6 @@ if (intensity > max_intensity) {    \
 (sum).green += ((int) (p).green) * (weight);\
 (sum).blue += ((int) (p).blue) * (weight);
 
-#define sum_pixels(sum, p) \
-(sum).red += ((int) (p).red); \
-(sum).green += ((int) (p).green);\
-(sum).blue += ((int) (p).blue);
 
 #define sum_pixels_by_color_with_kernel(color, index) \
 sum.color = (src[index].color * (-1)) + (src[index+1].color * (-1)) + \
@@ -74,13 +65,9 @@ sum.color = (src[index].color * (-1)) + (src[index+1].color * (-1)) + \
 (src[index+dim+dim].color * (-1)) + (src[index+dim+dim+1].color * (-1)) + \
 (src[index+dim+dim+2].color * (-1));
 
-#define sum_pixels_by_color_without_kernel(color, index) \
-sum.color = (src[index].color) + (src[index+1].color) + \
-(src[index+2].color) + (src[index+dim].color) + \
-(src[index+dim+1].color) + (src[index+dim+2].color) + \
-(src[index+dim+dim].color) + (src[index+dim+dim+1].color) + \
-(src[index+dim+dim+2].color);
-
+#define sum_pixels_by_color_without_kernel(sum, color, index) \
+sum.color += (src[index].color) + (src[(index)+dim].color) + \
+(src[(index)+dim+dim].color);
 
 /*
 * [1, 1, 1]
@@ -101,22 +88,17 @@ sum.color = (src[index].color) + (src[index+1].color) + \
 * column index smaller than kernelSize/2
 */
 void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
-
-
-
     register int i, j;
-    register int start = KERNEL_SIZE / 2;
-    register int end = dim - start;
-    for (i = start ; i < end; i++) {
-        for (j =  start ; j < end ; j++) {
-            pixel_sum sum;
+    register int end = dim - 1;
+    for (i = 1 ; i < end; ++i) {
+        for (j = 1 ; j < end ; ++j) {
+            pixel_sum sum = {0,0,0};
             pixel current_pixel;
             register int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
             register int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
             register int min_row, min_col, max_row, max_col;
             pixel loop_pixel;
 
-            initialize_pixel_sum(&sum);
             register int ii = max(i-1, 0);
             register int jj = max(j-1, 0);
             register int firstSrcIndex = calcIndex(ii, jj, dim);
@@ -158,32 +140,45 @@ void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) 
     }
 }
 void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
-
     register int i, j;
-    register int start = KERNEL_SIZE / 2;
-    register int end = dim - start;
-    for (i = start ; i < end; i++) {
-        for (j =  start ; j < end ; j++) {
-            pixel_sum sum;
+    register int end = dim - 1;
+    register int firstSrcIndex;
+    for (i = 1 ; i < end; ++i) {
+        pixel_sum sum1 = {0,0,0};
+        pixel_sum sum2 = {0,0,0};
+        int ii = max(i-1, 0);
+        firstSrcIndex = calcIndex(ii, 0, dim);
+        sum_pixels_by_color_without_kernel(sum1, red, firstSrcIndex);
+        sum_pixels_by_color_without_kernel(sum2, red, firstSrcIndex+1);
+        sum_pixels_by_color_without_kernel(sum1, green, firstSrcIndex);
+        sum_pixels_by_color_without_kernel(sum2, green, firstSrcIndex+1);
+        sum_pixels_by_color_without_kernel(sum1, blue, firstSrcIndex);
+        sum_pixels_by_color_without_kernel(sum2, blue, firstSrcIndex+1);
+        for (j = 1 ; j < end ; ++j, ++firstSrcIndex) {
+            pixel_sum sum = {0,0,0};
             pixel current_pixel;
             register int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
             register int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
             register int min_row, min_col, max_row, max_col;
             pixel loop_pixel;
 
-            initialize_pixel_sum(&sum);
-            register int ii = max(i-1, 0);
             register int jj = max(j-1, 0);
-            register int firstSrcIndex = calcIndex(ii, jj, dim);
-            sum_pixels_by_color_without_kernel(red, firstSrcIndex);
-            sum_pixels_by_color_without_kernel(green, firstSrcIndex);
-            sum_pixels_by_color_without_kernel(blue, firstSrcIndex);
 
+            pixel_sum tempSum = {0,0,0};
+            sum_pixels_by_color_without_kernel(sum, red, firstSrcIndex+2);
+            sum_pixels_by_color_without_kernel(sum, green, firstSrcIndex+2);
+            sum_pixels_by_color_without_kernel(sum, blue, firstSrcIndex+2);
+            tempSum = sum;
+            sum.red += sum1.red + sum2.red;
+            sum.green += sum1.green + sum2.green;
+            sum.blue += sum1.blue + sum2.blue;
+            sum1 = sum2;
+            sum2 = tempSum;
 
             if (filter) {
                 register int maxII = min(i+1, dim-1);
                 register int maxJJ = min(j+1, dim-1);
-                for(; ii <= maxII; ++ii) {
+                for(ii = max(i-1, 0); ii <= maxII; ++ii) {
                     for(jj = max(j-1, 0); jj <=maxJJ; ++jj) {
                         // apply kernel on pixel at [ii,jj]
                         loop_pixel = src[calcIndex(ii, jj, dim)];
@@ -214,29 +209,31 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
 }
 
 
-void charsToPixels2(pixel* pixels, pixel* pixels2) {
-    register int row, col;
-    for (row = 0 ; row < m ; ++row) {
-        for (col = 0 ; col < n ; ++col) {
-            register unsigned int row_n_col = row*n + col;
-            register unsigned int row_n_col_3 = 3*row_n_col;
-            pixels[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
-            pixels2[row_n_col] = *(pixel*)&(image->data[row_n_col_3]);
-        }
-    }
-}
+#define charsToPixels2(pixels, pixels2) \
+    do{                                    \
+    register int row, col; \
+    for (row = m ; row-- ;) { \
+        for (col = n ; col--;) { \
+            register unsigned int row_n_col = row*n + col; \
+            register unsigned int row_n_col_3 = (row_n_col<<1) + row_n_col; \
+            pixels[row_n_col] = *(pixel*)&(image->data[row_n_col_3]); \
+            pixels2[row_n_col] = *(pixel*)&(image->data[row_n_col_3]); \
+        } \
+    }  \
+} while(0)
 
-void pixelsToChars(pixel* pixels, pixel* pixel1) {
-	register int row, col;
-	for (row = 0 ; row < m ; ++row) {
-		for (col = 0 ; col < n ; ++col) {
-            register unsigned int row_n_col = row*n + col;
-            register unsigned int row_n_col_3 = 3*row_n_col;
-            *(pixel *)&(image->data[row_n_col_3]) = pixels[row_n_col];
-            pixel1[row_n_col]= pixels[row_n_col];
-		}
-	}
-}
+#define pixelsToChars(pixels, pixel1) \
+    do{                   \
+	register int row, col; \
+	for (row = m ; row-- ;) { \
+		for (col = n ; col-- ;) { \
+            register unsigned int row_n_col = row*n + col; \
+            register unsigned int row_n_col_3 = (row_n_col<<1) + row_n_col; \
+            *(pixel *)&(image->data[row_n_col_3]) = pixels[row_n_col]; \
+            pixel1[row_n_col]= pixels[row_n_col]; \
+		} \
+	} \
+} while(0)
 
 void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sharpRsltImgName, char* filteredBlurRsltImgName, char* filteredSharpRsltImgName, char flag) {
 
