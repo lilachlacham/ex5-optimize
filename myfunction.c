@@ -1,6 +1,5 @@
-#include <stdbool.h> 
-#define KERNEL_SIZE 3
-
+//207375700 Racheli Lilach Lacham
+#include <stdbool.h>
 
 typedef struct {
    unsigned char red;
@@ -15,9 +14,8 @@ typedef struct {
     //int num;
 } pixel_sum;
 
-
 /* Compute min and max of two integers, respectively */
-//change min, max functions to MACRO
+//change min, max , calcIndex functions to MACRO
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define calcIndex(i, j, n) ((i)*(n)+(j))
@@ -25,8 +23,8 @@ typedef struct {
 
 /*
  * assign_sum_to_pixel - Truncates pixel's new value to match the range [0,255]
+ * change the function to macro
  */
-
 #define assign_sum_to_pixel(current_pixel,sum, kernelScale) \
 	sum.red = sum.red / kernelScale; \
 	sum.green = sum.green / kernelScale; \
@@ -87,6 +85,9 @@ sum.color += (src[index].color) + (src[(index)+dim].color) + \
 * Ignore pixels where the kernel exceeds bounds. These are pixels with row index smaller than kernelSize/2 and/or
 * column index smaller than kernelSize/2
 */
+/*
+ * create one function for sharp and another for blur, so no need to get as parameter the kernel.
+ */
 void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
     register int i, j;
     register int end = dim - 1;
@@ -139,6 +140,7 @@ void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) 
         }
     }
 }
+
 void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
     register int i, j;
     register int end = dim - 1;
@@ -148,6 +150,7 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
         pixel_sum sum2 = {0,0,0};
         int ii = max(i-1, 0);
         firstSrcIndex = calcIndex(ii, 0, dim);
+        //calculate for every new mask the two left Columns.
         sum_pixels_by_color_without_kernel(sum1, red, firstSrcIndex);
         sum_pixels_by_color_without_kernel(sum2, red, firstSrcIndex+1);
         sum_pixels_by_color_without_kernel(sum1, green, firstSrcIndex);
@@ -165,6 +168,7 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
             register int jj = max(j-1, 0);
 
             pixel_sum tempSum = {0,0,0};
+            //calculate the right Column and saved it for the next loop.
             sum_pixels_by_color_without_kernel(sum, red, firstSrcIndex+2);
             sum_pixels_by_color_without_kernel(sum, green, firstSrcIndex+2);
             sum_pixels_by_color_without_kernel(sum, blue, firstSrcIndex+2);
@@ -210,9 +214,11 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
 
 
 #define charsToPixels2(pixels, pixels2) \
-    do{                                    \
-    register int row, col; \
-    for (row = m ; row-- ;) { \
+    /*do{                                    \
+    register int row, col;  */            \
+    memcpy(pixels,image->data,m*n*sizeof(pixel));                                   \
+    memcpy(pixels2,pixels,m*n*sizeof(pixel));                                   \
+    /*for (row = m ; row-- ;) { \
         for (col = n ; col--;) { \
             register unsigned int row_n_col = row*n + col; \
             register unsigned int row_n_col_3 = (row_n_col<<1) + row_n_col; \
@@ -220,10 +226,12 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
             pixels2[row_n_col] = *(pixel*)&(image->data[row_n_col_3]); \
         } \
     }  \
-} while(0)
+} while(0)*/
 
 #define pixelsToChars(pixels, pixel1) \
-    do{                   \
+    memcpy(image->data,pixels,m*n*sizeof(pixel));                                   \
+    memcpy(pixel1,pixels,m*n*sizeof(pixel));                                  \
+    /*do{                   \
 	register int row, col; \
 	for (row = m ; row-- ;) { \
 		for (col = n ; col-- ;) { \
@@ -233,7 +241,7 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
             pixel1[row_n_col]= pixels[row_n_col]; \
 		} \
 	} \
-} while(0)
+} while(0)*/
 
 void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sharpRsltImgName, char* filteredBlurRsltImgName, char* filteredSharpRsltImgName, char flag) {
 
