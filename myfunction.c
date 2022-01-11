@@ -84,6 +84,23 @@ if (filter) { \
 } \
 ++ptrRow;
 
+#define sumPixelWithoutWeight(ptrRow) \
+sum.red += ptrRow->red; \
+sum.green += ptrRow->green; \
+sum.blue += ptrRow->blue; \
+if (filter) { \
+    intensity = (int) ptrRow->red + ((int) ptrRow->green) + ((int) ptrRow->blue); \
+    if (intensity <= min_intensity) { \
+    min_intensity = intensity; \
+    minPtr = ptrRow; \
+} \
+    if (intensity > max_intensity) { \
+    max_intensity = intensity; \
+    maxPtr = ptrRow; \
+} \
+} \
+++ptrRow;
+
 /*
 * [1, 1, 1]
 * [1, 1, 1]
@@ -117,8 +134,7 @@ void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) 
     dst += dim+1;
 
     for (i = 1 ; i < end; ++i) {
-        register int j = 1;
-        pixel* ptrEndRow1 = ptrRow1 + dim;
+        pixel* ptrEndRow1 = ptrRow1 + dim - 2;
         while(ptrRow1 < ptrEndRow1) {
             pixel_sum sum = {0,0,0};
             pixel current_pixel;
@@ -148,79 +164,130 @@ void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) 
             *dst = current_pixel;
             ++dst;
         }
+        ptrRow1 += 2;
+        ptrRow2 += 2;
+        ptrRow3 += 2;
+        dst += 2;
     }
 }
 
 void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
-    register int i, j;
+    register int i;
     register int end = dim - 1;
-    register int firstSrcIndex;
+    register int intensity;
+    pixel* minPtr;
+    pixel* maxPtr;
+    pixel* ptrRow1 = src;
+    pixel* ptrRow2 = src + dim;
+    pixel* ptrRow3 = src + dim + dim;
+    dst += dim+1;
+
     for (i = 1 ; i < end; ++i) {
-        pixel_sum sum1 = {0,0,0};
-        pixel_sum sum2 = {0,0,0};
-        int ii = max(i-1, 0);
-        firstSrcIndex = calcIndex(ii, 0, dim);
-        //calculate for every new mask the two left Columns.
-        sum_pixels_by_color_without_kernel(sum1, red, firstSrcIndex);
-        sum_pixels_by_color_without_kernel(sum2, red, firstSrcIndex+1);
-        sum_pixels_by_color_without_kernel(sum1, green, firstSrcIndex);
-        sum_pixels_by_color_without_kernel(sum2, green, firstSrcIndex+1);
-        sum_pixels_by_color_without_kernel(sum1, blue, firstSrcIndex);
-        sum_pixels_by_color_without_kernel(sum2, blue, firstSrcIndex+1);
-        for (j = 1 ; j < end ; ++j, ++firstSrcIndex) {
+        pixel* ptrEndRow1 = ptrRow1 + dim - 2;
+        while(ptrRow1 < ptrEndRow1) {
             pixel_sum sum = {0,0,0};
             pixel current_pixel;
             register int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
             register int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
-            register int min_row, min_col, max_row, max_col;
-            pixel loop_pixel;
 
-            register int jj = max(j-1, 0);
-
-            pixel_sum tempSum = {0,0,0};
-            //calculate the right Column and saved it for the next loop.
-            sum_pixels_by_color_without_kernel(sum, red, firstSrcIndex+2);
-            sum_pixels_by_color_without_kernel(sum, green, firstSrcIndex+2);
-            sum_pixels_by_color_without_kernel(sum, blue, firstSrcIndex+2);
-            tempSum = sum;
-            sum.red += sum1.red + sum2.red;
-            sum.green += sum1.green + sum2.green;
-            sum.blue += sum1.blue + sum2.blue;
-            sum1 = sum2;
-            sum2 = tempSum;
+            sumPixelWithoutWeight(ptrRow1);
+            sumPixelWithoutWeight(ptrRow1);
+            sumPixelWithoutWeight(ptrRow1);
+            ptrRow1 -=2;
+            sumPixelWithoutWeight(ptrRow2);
+            sumPixelWithoutWeight(ptrRow2);
+            sumPixelWithoutWeight(ptrRow2);
+            ptrRow2 -=2;
+            sumPixelWithoutWeight(ptrRow3);
+            sumPixelWithoutWeight(ptrRow3);
+            sumPixelWithoutWeight(ptrRow3);
+            ptrRow3 -=2;
 
             if (filter) {
-                register int maxII = min(i+1, dim-1);
-                register int maxJJ = min(j+1, dim-1);
-                for(ii = max(i-1, 0); ii <= maxII; ++ii) {
-                    for(jj = max(j-1, 0); jj <=maxJJ; ++jj) {
-                        // apply kernel on pixel at [ii,jj]
-                        loop_pixel = src[calcIndex(ii, jj, dim)];
-                        register int intensity = (int) loop_pixel.red + ((int) loop_pixel.green) + ((int) loop_pixel.blue);
-                        if (intensity <= min_intensity) {
-                            min_intensity = intensity;
-                            min_row = ii;
-                            min_col = jj;
-                        }
-                        if (intensity > max_intensity) {
-                            max_intensity = intensity;
-                            max_row = ii;
-                            max_col = jj;
-                        }
-                    }
-                }
                 // find min and max coordinates
                 // filter out min and max
-                sum_pixels_by_weight(sum, &(src[calcIndex(min_row, min_col, dim)]), -1);
-                sum_pixels_by_weight(sum, &(src[calcIndex(max_row, max_col, dim)]), -1);
+                sum_pixels_by_weight(sum, minPtr, -1);
+                sum_pixels_by_weight(sum, maxPtr, -1);
             }
-
-            // assign kernel's result to pixel at [i,j]
             assign_sum_to_pixel(current_pixel, sum, kernelScale);
-            dst[calcIndex(i, j, dim)] = current_pixel;
+            *dst = current_pixel;
+            ++dst;
         }
+        ptrRow1 += 2;
+        ptrRow2 += 2;
+        ptrRow3 += 2;
+        dst += 2;
     }
 }
+//    register int i, j;
+//    register int end = dim - 1;
+//    register int firstSrcIndex;
+//    for (i = 1 ; i < end; ++i) {
+//        pixel_sum sum1 = {0,0,0};
+//        pixel_sum sum2 = {0,0,0};
+//        int ii = max(i-1, 0);
+//        firstSrcIndex = calcIndex(ii, 0, dim);
+//        //calculate for every new mask the two left Columns.
+//        sum_pixels_by_color_without_kernel(sum1, red, firstSrcIndex);
+//        sum_pixels_by_color_without_kernel(sum2, red, firstSrcIndex+1);
+//        sum_pixels_by_color_without_kernel(sum1, green, firstSrcIndex);
+//        sum_pixels_by_color_without_kernel(sum2, green, firstSrcIndex+1);
+//        sum_pixels_by_color_without_kernel(sum1, blue, firstSrcIndex);
+//        sum_pixels_by_color_without_kernel(sum2, blue, firstSrcIndex+1);
+//        for (j = 1 ; j < end ; ++j, ++firstSrcIndex) {
+//            pixel_sum sum = {0,0,0};
+//            pixel current_pixel;
+//            register int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
+//            register int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
+//            register int min_row, min_col, max_row, max_col;
+//            pixel loop_pixel;
+//
+//            register int jj = max(j-1, 0);
+//
+//            pixel_sum tempSum = {0,0,0};
+//            //calculate the right Column and saved it for the next loop.
+//            sum_pixels_by_color_without_kernel(sum, red, firstSrcIndex+2);
+//            sum_pixels_by_color_without_kernel(sum, green, firstSrcIndex+2);
+//            sum_pixels_by_color_without_kernel(sum, blue, firstSrcIndex+2);
+//            tempSum = sum;
+//            sum.red += sum1.red + sum2.red;
+//            sum.green += sum1.green + sum2.green;
+//            sum.blue += sum1.blue + sum2.blue;
+//            sum1 = sum2;
+//            sum2 = tempSum;
+//
+//            if (filter) {
+//                register int maxII = min(i+1, dim-1);
+//                register int maxJJ = min(j+1, dim-1);
+//                for(ii = max(i-1, 0); ii <= maxII; ++ii) {
+//                    for(jj = max(j-1, 0); jj <=maxJJ; ++jj) {
+//                        // apply kernel on pixel at [ii,jj]
+//                        loop_pixel = src[calcIndex(ii, jj, dim)];
+//                        register int intensity = (int) loop_pixel.red + ((int) loop_pixel.green) + ((int) loop_pixel.blue);
+//                        if (intensity <= min_intensity) {
+//                            min_intensity = intensity;
+//                            min_row = ii;
+//                            min_col = jj;
+//                        }
+//                        if (intensity > max_intensity) {
+//                            max_intensity = intensity;
+//                            max_row = ii;
+//                            max_col = jj;
+//                        }
+//                    }
+//                }
+//                // find min and max coordinates
+//                // filter out min and max
+//                sum_pixels_by_weight(sum, &(src[calcIndex(min_row, min_col, dim)]), -1);
+//                sum_pixels_by_weight(sum, &(src[calcIndex(max_row, max_col, dim)]), -1);
+//            }
+//
+//            // assign kernel's result to pixel at [i,j]
+//            assign_sum_to_pixel(current_pixel, sum, kernelScale);
+//            dst[calcIndex(i, j, dim)] = current_pixel;
+//        }
+//    }
+//}
 
 
 #define charsToPixels2(pixels, pixels2) \
