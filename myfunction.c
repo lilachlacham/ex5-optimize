@@ -51,9 +51,9 @@ if (intensity > max_intensity) {    \
 * sum_pixels_by_weight - Sums pixel values, scaled by given weight
 */
 #define sum_pixels_by_weight(sum, p, weight) \
-(sum).red += ((int) (p).red) * (weight); \
-(sum).green += ((int) (p).green) * (weight);\
-(sum).blue += ((int) (p).blue) * (weight);
+(sum).red += ((int) (p)->red) * (weight); \
+(sum).green += ((int) (p)->green) * (weight);\
+(sum).blue += ((int) (p)->blue) * (weight);
 
 
 #define sum_pixels_by_color_with_kernel(color, index) \
@@ -66,6 +66,23 @@ sum.color = (src[index].color * (-1)) + (src[index+1].color * (-1)) + \
 #define sum_pixels_by_color_without_kernel(sum, color, index) \
 sum.color += (src[index].color) + (src[(index)+dim].color) + \
 (src[(index)+dim+dim].color);
+
+#define sumPixel(ptrRow, weight) \
+sum.red += ptrRow->red * weight; \
+sum.green += ptrRow->green * weight; \
+sum.blue += ptrRow->blue * weight; \
+if (filter) { \
+    intensity = (int) ptrRow->red + ((int) ptrRow->green) + ((int) ptrRow->blue); \
+    if (intensity <= min_intensity) { \
+    min_intensity = intensity; \
+    minPtr = ptrRow; \
+} \
+    if (intensity > max_intensity) { \
+    max_intensity = intensity; \
+    maxPtr = ptrRow; \
+} \
+} \
+++ptrRow;
 
 /*
 * [1, 1, 1]
@@ -89,54 +106,47 @@ sum.color += (src[index].color) + (src[(index)+dim].color) + \
  * create one function for sharp and another for blur, so no need to get as parameter the kernel.
  */
 void smoothSharp(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
-    register int i, j;
+    register int i;
     register int end = dim - 1;
+    register int intensity;
+    pixel* minPtr;
+    pixel* maxPtr;
+    pixel* ptrRow1 = src;
+    pixel* ptrRow2 = src + dim;
+    pixel* ptrRow3 = src + dim + dim;
+    dst += dim+1;
+
     for (i = 1 ; i < end; ++i) {
-        for (j = 1 ; j < end ; ++j) {
+        register int j = 1;
+        pixel* ptrEndRow1 = ptrRow1 + dim;
+        while(ptrRow1 < ptrEndRow1) {
             pixel_sum sum = {0,0,0};
             pixel current_pixel;
             register int min_intensity = 766; // arbitrary value that is higher than maximum possible intensity, which is 255*3=765
             register int max_intensity = -1; // arbitrary value that is lower than minimum possible intensity, which is 0
-            register int min_row, min_col, max_row, max_col;
-            pixel loop_pixel;
 
-            register int ii = max(i-1, 0);
-            register int jj = max(j-1, 0);
-            register int firstSrcIndex = calcIndex(ii, jj, dim);
-
-            sum_pixels_by_color_with_kernel(red, firstSrcIndex);
-            sum_pixels_by_color_with_kernel(green, firstSrcIndex);
-            sum_pixels_by_color_with_kernel(blue, firstSrcIndex);
+            sumPixel(ptrRow1, -1);
+            sumPixel(ptrRow1, -1);
+            sumPixel(ptrRow1, -1);
+            ptrRow1 -=2;
+            sumPixel(ptrRow2, -1);
+            sumPixel(ptrRow2, 9);
+            sumPixel(ptrRow2, -1);
+            ptrRow2 -=2;
+            sumPixel(ptrRow3, -1);
+            sumPixel(ptrRow3, -1);
+            sumPixel(ptrRow3, -1);
+            ptrRow3 -=2;
 
             if (filter) {
-                register int maxII = min(i+1, dim-1);
-                register int maxJJ = min(j+1, dim-1);
-                for(; ii <= maxII; ++ii) {
-                    for(jj = max(j-1, 0); jj <=maxJJ; ++jj) {
-                        // apply kernel on pixel at [ii,jj]
-                        loop_pixel = src[calcIndex(ii, jj, dim)];
-                        register int intensity = (int) loop_pixel.red + ((int) loop_pixel.green) + ((int) loop_pixel.blue);
-                        if (intensity <= min_intensity) {
-                            min_intensity = intensity;
-                            min_row = ii;
-                            min_col = jj;
-                        }
-                        if (intensity > max_intensity) {
-                            max_intensity = intensity;
-                            max_row = ii;
-                            max_col = jj;
-                        }
-                    }
-                }
                 // find min and max coordinates
                 // filter out min and max
-                sum_pixels_by_weight(sum, src[calcIndex(min_row, min_col, dim)], -1);
-                sum_pixels_by_weight(sum, src[calcIndex(max_row, max_col, dim)], -1);
+                sum_pixels_by_weight(sum,minPtr, -1);
+                sum_pixels_by_weight(sum, maxPtr, -1);
             }
-
-            // assign kernel's result to pixel at [i,j]
             assign_sum_to_pixel(current_pixel, sum, kernelScale);
-            dst[calcIndex(i, j, dim)] = current_pixel;
+            *dst = current_pixel;
+            ++dst;
         }
     }
 }
@@ -201,8 +211,8 @@ void smoothBlur(int dim, pixel *src, pixel *dst, int kernelScale, bool filter) {
                 }
                 // find min and max coordinates
                 // filter out min and max
-                sum_pixels_by_weight(sum, src[calcIndex(min_row, min_col, dim)], -1);
-                sum_pixels_by_weight(sum, src[calcIndex(max_row, max_col, dim)], -1);
+                sum_pixels_by_weight(sum, &(src[calcIndex(min_row, min_col, dim)]), -1);
+                sum_pixels_by_weight(sum, &(src[calcIndex(max_row, max_col, dim)]), -1);
             }
 
             // assign kernel's result to pixel at [i,j]
